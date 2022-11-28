@@ -1,6 +1,6 @@
 # DHCPD Pools Exporter
 Prometheus exporter made to monitor ISC DHCP server's pools utilisation.
-# Run in Docker
+# Run with Docker
 Build Docker image
 ```bash
 docker build -t <your_tag_name>:<version> .
