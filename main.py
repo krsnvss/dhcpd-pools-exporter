@@ -6,6 +6,7 @@ to measure pools utilisation.
 Author: krsnvss@gmail.com
 """
 import argparse
+import logging
 from os import environ
 from time import sleep
 from parser import DhcpdFileParser
@@ -32,7 +33,7 @@ class DhcpdPoolsCollector:
         self.lease_file = lease_file
         self.pools_pattern = pools_pattern
         self.lease_pattern = lease_pattern
-        self.host = environ['HOST']
+        self.host = environ["HOST"]
 
     def collect(self):
         """
@@ -56,9 +57,11 @@ class DhcpdPoolsCollector:
         and calculate pools utilisation
         """
         self.parser = DhcpdFileParser()
+        logging.debug(f"Parsing {self.config_file}")
         self.pools = self.parser.parse_file(
             self.config_file, self.pools_pattern, configuration=True
         )
+        logging.debug(f"Parsing {self.lease_file}")
         self.leases = self.parser.parse_file(
             self.lease_file, self.lease_pattern, leases=True
         )
@@ -123,8 +126,18 @@ def main():
         default="lease_regex",
         type=str,
     )
+    arg_parser.add_argument(
+        "--log_level",
+        help="Set log level (10 - DEBUG, 20 - INFO, WARNING - 30, ERROR - 40) ",
+        default=10,
+        type=int,
+    )
     args = arg_parser.parse_args()
+    logging.basicConfig(
+        format="%(asctime)s\t%(levelname)s\t%(message)s", level=args.log_level
+    )
     start_http_server(args.port)
+    logging.info(f"Running http server, listening {args.port}")
     REGISTRY.register(
         DhcpdPoolsCollector(
             config_file=args.config,
@@ -136,6 +149,7 @@ def main():
     while True:
         # collection interval
         sleep(30)
+        logging.debug("Collecting metrics")
 
 
 if __name__ == "__main__":
