@@ -9,13 +9,14 @@ import argparse
 import logging
 from os import environ
 from time import sleep
+from threading import Thread
+from queue import Queue
 from parser import DhcpdFileParser
 from prometheus_client.core import GaugeMetricFamily, REGISTRY
 from prometheus_client import start_http_server
-from threading import Thread
-from queue import Queue
 
 POOLS_DATA = Queue(maxsize=10)
+
 
 class DhcpdPoolsCollector:
     """
@@ -56,20 +57,19 @@ def read_regex(filename: str) -> str:
     with open(file=filename, mode="r", encoding="utf8") as _file:
         return _file.read().strip()
 
-def data_collector(config_file: str, lease_file: str, pools_pattern: str, lease_pattern: str):
+
+def data_collector(
+    config_file: str, lease_file: str, pools_pattern: str, lease_pattern: str
+):
     """
     Parse dhcpd configuration and leases file
     and calculate pools utilisation
     """
     parser = DhcpdFileParser()
     logging.debug(f"Parsing {config_file}")
-    pools = parser.parse_file(
-        config_file, pools_pattern, configuration=True
-    )
+    pools = parser.parse_file(config_file, pools_pattern, configuration=True)
     logging.debug(f"Parsing {lease_file}")
-    leases = parser.parse_file(
-        lease_file, lease_pattern, leases=True
-    )
+    leases = parser.parse_file(lease_file, lease_pattern, leases=True)
     stats = {}
     while True:
         for pool in pools:
@@ -80,11 +80,12 @@ def data_collector(config_file: str, lease_file: str, pools_pattern: str, lease_
             for pool in pools:
                 if lease.ip in pool.subnet:
                     stats[pool.name]["reserved"] += 1
-                    stats[pool.name]["percentage"] = stats[pool.name][
-                        "reserved"
-                    ] / (stats[pool.name]["total"] / 100)
+                    stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
+                        stats[pool.name]["total"] / 100
+                    )
         POOLS_DATA.put(stats)
         sleep(15)
+
 
 def main():
     """
@@ -140,8 +141,8 @@ def main():
             args.config,
             args.lease,
             read_regex(args.pools_regex),
-            read_regex(args.lease_regex)
-        )
+            read_regex(args.lease_regex),
+        ),
     )
     start_http_server(args.port)
     REGISTRY.register(DhcpdPoolsCollector())
