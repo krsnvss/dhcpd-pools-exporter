@@ -12,72 +12,41 @@ from time import sleep
 from parser import DhcpdFileParser
 from prometheus_client.core import GaugeMetricFamily, REGISTRY
 from prometheus_client import start_http_server
+from threading import Thread
+from queue import Queue
 
+POOLS_DATA = Queue(maxsize=10)
 
 class DhcpdPoolsCollector:
     """
     Prometheus exporter
     """
 
-    def __init__(
-        self, config_file: str, lease_file: str, pools_pattern: str, lease_pattern: str
-    ) -> None:
+    def __init__(self) -> None:
         """
         Metrics collector for pool utilisation metrics.
-        config_file - ISC DHCP Server configuration file;
-        lease_file - ISC DHCP Server leases file;
-        pools_pattern - regular expression for configuration file parsing;
-        lease_pattern - regular expression for leases file parsing;
         """
-        self.config_file = config_file
-        self.lease_file = lease_file
-        self.pools_pattern = pools_pattern
-        self.lease_pattern = lease_pattern
         self.host = environ["HOST"]
 
     def collect(self):
         """
         Collect metrics
         """
-        self.stats = self.get_stats()
-        self.gauge = GaugeMetricFamily(
-            name="dhcpd_pools_util",
-            documentation="DHCP server pools utilisation",
-            labels=["pool", "host"],
-        )
-        for pool in list(self.stats.keys()):
-            self.gauge.add_metric(
-                labels=[pool, self.host], value=self.stats[pool]["percentage"]
+        if not POOLS_DATA.empty():
+            self.stats = POOLS_DATA.get(block=True)
+            self.gauge = GaugeMetricFamily(
+                name="dhcpd_pools_util",
+                documentation="DHCP server pools utilisation",
+                labels=["pool", "host"],
             )
-        yield self.gauge
-
-    def get_stats(self) -> dict:
-        """
-        Parse dhcpd configuration and leases file
-        and calculate pools utilisation
-        """
-        self.parser = DhcpdFileParser()
-        logging.debug(f"Parsing {self.config_file}")
-        self.pools = self.parser.parse_file(
-            self.config_file, self.pools_pattern, configuration=True
-        )
-        logging.debug(f"Parsing {self.lease_file}")
-        self.leases = self.parser.parse_file(
-            self.lease_file, self.lease_pattern, leases=True
-        )
-        self.stats = {}
-        for pool in self.pools:
-            self.stats[pool.name] = dict(
-                total=pool.subnet.num_addresses, reserved=0, percentage=0
-            )
-        for lease in self.leases:
-            for pool in self.pools:
-                if lease.ip in pool.subnet:
-                    self.stats[pool.name]["reserved"] += 1
-                    self.stats[pool.name]["percentage"] = self.stats[pool.name][
-                        "reserved"
-                    ] / (self.stats[pool.name]["total"] / 100)
-        return self.stats
+            if self.stats:
+                logging.debug("Values collected")
+                logging.debug(f"{POOLS_DATA.qsize()}")
+                for pool in list(self.stats.keys()):
+                    self.gauge.add_metric(
+                        labels=[pool, self.host], value=self.stats[pool]["percentage"]
+                    )
+                yield self.gauge
 
 
 def read_regex(filename: str) -> str:
@@ -87,6 +56,35 @@ def read_regex(filename: str) -> str:
     with open(file=filename, mode="r", encoding="utf8") as _file:
         return _file.read().strip()
 
+def data_collector(config_file: str, lease_file: str, pools_pattern: str, lease_pattern: str):
+    """
+    Parse dhcpd configuration and leases file
+    and calculate pools utilisation
+    """
+    parser = DhcpdFileParser()
+    logging.debug(f"Parsing {config_file}")
+    pools = parser.parse_file(
+        config_file, pools_pattern, configuration=True
+    )
+    logging.debug(f"Parsing {lease_file}")
+    leases = parser.parse_file(
+        lease_file, lease_pattern, leases=True
+    )
+    stats = {}
+    while True:
+        for pool in pools:
+            stats[pool.name] = dict(
+                total=pool.subnet.num_addresses, reserved=0, percentage=0
+            )
+        for lease in leases:
+            for pool in pools:
+                if lease.ip in pool.subnet:
+                    stats[pool.name]["reserved"] += 1
+                    stats[pool.name]["percentage"] = stats[pool.name][
+                        "reserved"
+                    ] / (stats[pool.name]["total"] / 100)
+        POOLS_DATA.put(stats)
+        sleep(15)
 
 def main():
     """
@@ -136,20 +134,20 @@ def main():
     logging.basicConfig(
         format="%(asctime)s\t%(levelname)s\t%(message)s", level=args.log_level
     )
-    start_http_server(args.port)
-    logging.info(f"Running http server, listening {args.port}")
-    REGISTRY.register(
-        DhcpdPoolsCollector(
-            config_file=args.config,
-            lease_file=args.lease,
-            pools_pattern=read_regex(args.pools_regex),
-            lease_pattern=read_regex(args.lease_regex),
+    pools_data = Thread(
+        target=data_collector,
+        args=(
+            args.config,
+            args.lease,
+            read_regex(args.pools_regex),
+            read_regex(args.lease_regex)
         )
     )
+    start_http_server(args.port)
+    REGISTRY.register(DhcpdPoolsCollector())
     while True:
-        # collection interval
-        sleep(30)
-        logging.debug("Collecting metrics")
+        pools_data.start()
+        pools_data.join()
 
 
 if __name__ == "__main__":
