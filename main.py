@@ -7,47 +7,15 @@ Author: krsnvss@gmail.com
 """
 import argparse
 import logging
-from os import environ
 from time import sleep
 from threading import Thread
 from queue import Queue
 from parser import DhcpdFileParser
-from prometheus_client.core import GaugeMetricFamily, REGISTRY
+from prometheus_client.core import REGISTRY
 from prometheus_client import start_http_server
+from exporter import DhcpdPoolsExporter
 
 POOLS_DATA = Queue(maxsize=10)
-
-
-class DhcpdPoolsCollector:
-    """
-    Prometheus exporter
-    """
-
-    def __init__(self) -> None:
-        """
-        Metrics collector for pool utilisation metrics.
-        """
-        self.host = environ["HOST"]
-
-    def collect(self):
-        """
-        Collect metrics
-        """
-        if not POOLS_DATA.empty():
-            self.stats = POOLS_DATA.get(block=True)
-            self.gauge = GaugeMetricFamily(
-                name="dhcpd_pools_util",
-                documentation="DHCP server pools utilisation",
-                labels=["pool", "host"],
-            )
-            if self.stats:
-                logging.debug("Values collected")
-                logging.debug(f"{POOLS_DATA.qsize()}")
-                for pool in list(self.stats.keys()):
-                    self.gauge.add_metric(
-                        labels=[pool, self.host], value=self.stats[pool]["percentage"]
-                    )
-                yield self.gauge
 
 
 def read_regex(filename: str) -> str:
@@ -58,8 +26,13 @@ def read_regex(filename: str) -> str:
         return _file.read().strip()
 
 
-def data_collector(
-    config_file: str, lease_file: str, pools_pattern: str, lease_pattern: str
+def get_pools_util(
+    config_file: str,
+    lease_file: str,
+    pools_pattern: str,
+    lease_pattern: str,
+    parse_interval: int,
+    _queue: Queue,
 ):
     """
     Parse dhcpd configuration and leases file
@@ -83,8 +56,8 @@ def data_collector(
                     stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
                         stats[pool.name]["total"] / 100
                     )
-        POOLS_DATA.put(stats)
-        sleep(15)
+        _queue.put(stats)
+        sleep(parse_interval)
 
 
 def main():
@@ -131,21 +104,29 @@ def main():
         default=10,
         type=int,
     )
+    arg_parser.add_argument(
+        "--parse_interval",
+        help="Interval in seconds between file parses",
+        default=30,
+        type=int,
+    )
     args = arg_parser.parse_args()
     logging.basicConfig(
         format="%(asctime)s\t%(levelname)s\t%(message)s", level=args.log_level
     )
     pools_data = Thread(
-        target=data_collector,
+        target=get_pools_util,
         args=(
             args.config,
             args.lease,
             read_regex(args.pools_regex),
             read_regex(args.lease_regex),
+            args.parse_interval,
+            POOLS_DATA,
         ),
     )
     start_http_server(args.port)
-    REGISTRY.register(DhcpdPoolsCollector())
+    REGISTRY.register(DhcpdPoolsExporter(POOLS_DATA))
     while True:
         pools_data.start()
         pools_data.join()
