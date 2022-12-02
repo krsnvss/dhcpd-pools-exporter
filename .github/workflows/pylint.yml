@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   build:
-    runs-on: python:3.9.15-slim
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.9"]
