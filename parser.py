@@ -11,9 +11,10 @@ class DhcpdPool:
     DHCP Pool object
     """
 
-    def __init__(self, name: str, subnet: ip_network) -> None:
+    def __init__(self, name: str, subnet: ip_network, router: str) -> None:
         self.name = name
         self.subnet = subnet
+        self.router = router
 
     def __repr__(self):
         return f"{self.name} - {self.subnet} - {self.subnet.num_addresses} addresses"
@@ -70,6 +71,7 @@ class DhcpdFileParser:
         pool = DhcpdPool(
             subnet=ip_network(f"{match_array[0]}/{match_array[1]}"),
             name=match_array[2],
+            router=match_array[3],
         )
         return pool
 

@@ -47,7 +47,7 @@ def get_pools_util(
     while True:
         for pool in pools:
             stats[pool.name] = dict(
-                total=pool.subnet.num_addresses, reserved=0, percentage=0
+                total=pool.subnet.num_addresses, reserved=0, percentage=0, router=""
             )
         for lease in leases:
             for pool in pools:
@@ -56,6 +56,7 @@ def get_pools_util(
                     stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
                         stats[pool.name]["total"] / 100
                     )
+                    stats[pool.name]["router"] = pool.router
         _queue.put(stats)
         sleep(parse_interval)
 
