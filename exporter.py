@@ -27,11 +27,12 @@ class DhcpdPoolsExporter:
             self.gauge = GaugeMetricFamily(
                 name="dhcpd_pools_util",
                 documentation="DHCP server pools utilisation",
-                labels=["pool", "host"],
+                labels=["host", "pool", "router"],
             )
             if self.stats:
                 for pool in list(self.stats.keys()):
                     self.gauge.add_metric(
-                        labels=[pool, self.host], value=self.stats[pool]["percentage"]
+                        labels=[self.host, pool, self.stats[pool]["router"]],
+                        value=self.stats[pool]["percentage"],
                     )
                 yield self.gauge
