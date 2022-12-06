@@ -49,14 +49,22 @@ def get_pools_util(
             stats[pool.name] = dict(
                 total=pool.subnet.num_addresses, reserved=0, percentage=0, router=""
             )
-        for lease in leases:
-            for pool in pools:
-                if lease.ip in pool.subnet:
-                    stats[pool.name]["reserved"] += 1
-                    stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
+        leases_set = set([lease.ip for lease in leases])
+        for pool in pools:
+            pool_hosts = set(pool.subnet.hosts())
+            stats[pool.name]["reserved"] = len(pool_hosts.intersection(leases_set))
+            stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
                         stats[pool.name]["total"] / 100
                     )
-                    stats[pool.name]["router"] = pool.router
+            stats[pool.name]["router"] = pool.router
+        # for lease in leases:
+        #     for pool in pools:
+        #         if lease.ip in pool.subnet:
+        #             stats[pool.name]["reserved"] += 1
+        #             stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
+        #                 stats[pool.name]["total"] / 100
+        #             )
+        #             stats[pool.name]["router"] = pool.router
         _queue.put(stats)
         sleep(parse_interval)
 
