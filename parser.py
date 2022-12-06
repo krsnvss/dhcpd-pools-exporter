@@ -80,13 +80,7 @@ class DhcpdFileParser:
         Convert match tuple to DhcpdLease object
         """
         lease = DhcpdLease(
-            ip=ip_address(
-                f"{match_array[0]}.{match_array[1]}.{match_array[2]}.{match_array[3]}"
-            ),
-            state=None,
+            ip=ip_address(match_array[0]),
+            state=(match_array[1])
         )
-        if "active" in match_array:
-            lease.state = "active"
-        elif "backup" in match_array:
-            lease.state = "backup"
         return lease
