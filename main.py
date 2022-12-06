@@ -10,7 +10,7 @@ import logging
 from time import sleep
 from threading import Thread
 from queue import Queue
-from parser import DhcpdFileParser
+from dhcpd_parser import DhcpdFileParser
 from prometheus_client.core import REGISTRY
 from prometheus_client import start_http_server
 from exporter import DhcpdPoolsExporter
