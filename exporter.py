@@ -31,8 +31,9 @@ class DhcpdPoolsExporter:
             )
             if self.stats:
                 for pool in list(self.stats.keys()):
-                    self.gauge.add_metric(
-                        labels=[self.host, pool, self.stats[pool]["router"]],
-                        value=self.stats[pool]["percentage"],
-                    )
+                    if self.stats[pool]["percentage"]:
+                        self.gauge.add_metric(
+                            labels=[self.host, pool, self.stats[pool]["router"]],
+                            value=self.stats[pool]["percentage"]
+                        )
                 yield self.gauge
