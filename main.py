@@ -15,7 +15,7 @@ from prometheus_client.core import REGISTRY
 from prometheus_client import start_http_server
 from exporter import DhcpdPoolsExporter
 
-POOLS_DATA = Queue(maxsize=10)
+POOLS_DATA = Queue(maxsize=100)
 
 
 def read_regex(filename: str) -> str:
@@ -52,19 +52,11 @@ def get_pools_util(
         leases_set = set([lease.ip for lease in leases])
         for pool in pools:
             pool_hosts = set(pool.subnet.hosts())
-            stats[pool.name]["reserved"] = len(pool_hosts.intersection(leases_set))
+            stats[pool.name]["reserved"] = len(leases_set.intersection(pool_hosts))
             stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
                         stats[pool.name]["total"] / 100
                     )
             stats[pool.name]["router"] = pool.router
-        # for lease in leases:
-        #     for pool in pools:
-        #         if lease.ip in pool.subnet:
-        #             stats[pool.name]["reserved"] += 1
-        #             stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
-        #                 stats[pool.name]["total"] / 100
-        #             )
-        #             stats[pool.name]["router"] = pool.router
         _queue.put(stats)
         sleep(parse_interval)
 
@@ -116,7 +108,7 @@ def main():
     arg_parser.add_argument(
         "--parse_interval",
         help="Interval in seconds between file parses",
-        default=30,
+        default=15,
         type=int,
     )
     args = arg_parser.parse_args()
