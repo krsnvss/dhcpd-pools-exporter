@@ -16,7 +16,7 @@ from prometheus_client import start_http_server
 from exporter import DhcpdPoolsExporter
 
 # Queue which stores values to display
-POOLS_DATA = Queue(maxsize=3)
+POOLS_DATA = Queue(maxsize=100)
 # Thread locker
 THREAD_LOCK = Lock()
 
