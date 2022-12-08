@@ -8,14 +8,17 @@ Author: krsnvss@gmail.com
 import argparse
 import logging
 from time import sleep
-from threading import Thread
+from threading import Thread, Lock
 from queue import Queue
 from dhcpd_parser import DhcpdFileParser
 from prometheus_client.core import REGISTRY
 from prometheus_client import start_http_server
 from exporter import DhcpdPoolsExporter
 
-POOLS_DATA = Queue(maxsize=100)
+# Queue which stores values to display
+POOLS_DATA = Queue(maxsize=3)
+# Thread locker
+THREAD_LOCK = Lock()
 
 
 def read_regex(filename: str) -> str:
@@ -39,25 +42,36 @@ def get_pools_util(
     and calculate pools utilisation
     """
     parser = DhcpdFileParser()
-    logging.debug(f"Parsing {config_file}")
-    pools = parser.parse_file(config_file, pools_pattern, configuration=True)
-    logging.debug(f"Parsing {lease_file}")
-    leases = parser.parse_file(lease_file, lease_pattern, leases=True)
-    stats = {}
     while True:
-        for pool in pools:
-            stats[pool.name] = dict(
-                total=pool.subnet.num_addresses, reserved=0, percentage=0, router=""
-            )
+        with THREAD_LOCK:
+            logging.debug(f"Parsing {config_file}")
+        pools = parser.parse_file(config_file, pools_pattern, configuration=True)
+        with THREAD_LOCK:
+            logging.debug(f"Parsing {lease_file}")
+        leases = parser.parse_file(lease_file, lease_pattern, leases=True)
+        stats = {
+            pool.name: {
+                "total": pool.subnet.num_addresses,
+                "reserved": 0,
+                "percentage": 0,
+                "router": "",
+            }
+            for pool in pools
+        }
         leases_set = set([lease.ip for lease in leases])
         for pool in pools:
             pool_hosts = set(pool.subnet.hosts())
             stats[pool.name]["reserved"] = len(leases_set.intersection(pool_hosts))
             stats[pool.name]["percentage"] = stats[pool.name]["reserved"] / (
-                        stats[pool.name]["total"] / 100
-                    )
+                stats[pool.name]["total"] / 100
+            )
             stats[pool.name]["router"] = pool.router
+        # Get one item to avoid queue stuck with old values
+        if _queue.full():
+            _queue.get_nowait()
         _queue.put(stats)
+        with THREAD_LOCK:
+            logging.debug(f"{_queue.qsize()} items in queue")
         sleep(parse_interval)
 
 

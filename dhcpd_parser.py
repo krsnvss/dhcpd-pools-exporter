@@ -79,8 +79,5 @@ class DhcpdFileParser:
         """
         Convert match tuple to DhcpdLease object
         """
-        lease = DhcpdLease(
-            ip=ip_address(match_array[0]),
-            state=(match_array[1])
-        )
+        lease = DhcpdLease(ip=ip_address(match_array[0]), state=(match_array[1]))
         return lease
