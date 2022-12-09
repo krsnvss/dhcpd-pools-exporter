@@ -14,6 +14,7 @@ from dhcpd_parser import DhcpdFileParser
 from prometheus_client.core import REGISTRY
 from prometheus_client import start_http_server
 from exporter import DhcpdPoolsExporter
+from yaml import safe_load
 
 # Queue which stores values to display
 POOLS_DATA = Queue(maxsize=100)
@@ -23,11 +24,18 @@ THREAD_LOCK = Lock()
 
 def read_regex(filename: str) -> str:
     """
-    Read regular expression from text file
+    Reads regular expression from text file
     """
     with open(file=filename, mode="r", encoding="utf8") as _file:
         return _file.read().strip()
 
+def load_configuration(filename:str) -> dict:
+    """
+    Reads exporter configuration file and converts it into a Python dictionary
+    """
+    with open(file=filename, mode="r", encoding="utf8") as _file:
+        return safe_load(_file.read().strip())
+ 
 
 def get_pools_util(
     config_file: str,
@@ -38,8 +46,8 @@ def get_pools_util(
     _queue: Queue,
 ):
     """
-    Parse dhcpd configuration and leases file
-    and calculate pools utilisation
+    Parses dhcpd configuration and leases file
+    and calculates pools utilisation
     """
     parser = DhcpdFileParser()
     while True:
@@ -77,19 +85,26 @@ def get_pools_util(
 
 def main():
     """
-    Read arguments and run exporter http server
+    Reads arguments and runs exporter http server
     """
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(
         "-c",
         "--config",
+        help="Path to exporter configuration file",
+        default="dhcpd_exporter.yml",
+        type=str,
+    )
+    arg_parser.add_argument(
+        "-C",
+        "--dhcpd_config",
         help="Path to DHCP server's configuration file",
         default="dhcpd.conf",
         type=str,
     )
     arg_parser.add_argument(
         "-l",
-        "--lease",
+        "--dhcpd_lease",
         help="Path to DHCP server's leases file",
         default="dhcpd.leases",
         type=str,
@@ -126,21 +141,39 @@ def main():
         type=int,
     )
     args = arg_parser.parse_args()
-    logging.basicConfig(
-        format="%(asctime)s\t%(levelname)s\t%(message)s", level=args.log_level
-    )
-    pools_data = Thread(
-        target=get_pools_util,
-        args=(
-            args.config,
-            args.lease,
-            read_regex(args.pools_regex),
-            read_regex(args.lease_regex),
-            args.parse_interval,
-            POOLS_DATA,
-        ),
-    )
-    start_http_server(args.port)
+    exporter_config = load_configuration(args.config)
+    if exporter_config:
+        logging.basicConfig(
+        format="%(asctime)s\t%(levelname)s\t%(message)s", level=exporter_config['log_level']
+        )
+        pools_data = Thread(
+            target=get_pools_util,
+            args=(
+                exporter_config['files']['configuration'],
+                exporter_config['files']['leases'],
+                read_regex(exporter_config['regex']['pools']),
+                read_regex(exporter_config['regex']['leases']),
+                exporter_config['parse_interval'],
+                POOLS_DATA,
+            ),
+        )
+        start_http_server(exporter_config['port'])
+    else:
+        logging.basicConfig(
+            format="%(asctime)s\t%(levelname)s\t%(message)s", level=args.log_level
+        )
+        pools_data = Thread(
+            target=get_pools_util,
+            args=(
+                args.dhcpd_config,
+                args.dhcpd_lease,
+                read_regex(args.pools_regex),
+                read_regex(args.lease_regex),
+                args.parse_interval,
+                POOLS_DATA,
+            ),
+        )
+        start_http_server(args.port)
     REGISTRY.register(DhcpdPoolsExporter(POOLS_DATA))
     while True:
         pools_data.start()
