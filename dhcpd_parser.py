@@ -39,7 +39,7 @@ class DhcpdLease:
 
 class DhcpdFileParser:
     """
-    Parse ISC DHCP Server's configuration and leases files
+    Parses ISC DHCP Server's configuration and leases files
     """
 
     def parse_file(
@@ -66,7 +66,7 @@ class DhcpdFileParser:
 
     def convert_to_pool(self, match_array: tuple) -> DhcpdPool:
         """
-        Convert match tuple to DhcpdPool object
+        Converts match tuple to DhcpdPool object
         """
         pool = DhcpdPool(
             subnet=ip_network(f"{match_array[0]}/{match_array[1]}"),
@@ -77,7 +77,7 @@ class DhcpdFileParser:
 
     def convert_to_lease(self, match_array: tuple) -> DhcpdLease:
         """
-        Convert match tuple to DhcpdLease object
+        Converts match tuple to DhcpdLease object
         """
         lease = DhcpdLease(ip=ip_address(match_array[0]), state=(match_array[1]))
         return lease
