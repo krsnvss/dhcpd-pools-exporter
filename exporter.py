@@ -20,7 +20,7 @@ class DhcpdPoolsExporter:
 
     def collect(self) -> GaugeMetricFamily:
         """
-        Collect metrics
+        Collects metrics
         """
         self.gauge = GaugeMetricFamily(
             name="dhcpd_pools_util",

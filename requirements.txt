@@ -1,1 +1,2 @@
 prometheus_client>=0.15.0
+pyyaml>=6.0
