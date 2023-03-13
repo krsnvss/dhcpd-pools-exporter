@@ -1,8 +1,10 @@
 files:
   # Path to DHCP server's configuration file
-  configuration: /etc/dhcp/dhcpd.conf
+  # configuration: /etc/dhcp/dhcpd.conf
+  configuration: dhcpd.conf
   # Path to DHCP server's leases file
-  leases: /var/lib/dhcp/dhcpd.leases
+  # leases: /var/lib/dhcp/dhcpd.leases
+  leases: dhcpd.leases
 # Prometheus exporter listening port
 port: 9000
 regex:
@@ -10,9 +12,12 @@ regex:
   pools: pools_regex
   # plain text file containing regular expression for leases file parsing
   leases: lease_regex
-# 10 - DEBUG, 20 - INFO, WARNING - 30, ERROR - 40
+# 10DEBUG, 20INFO, WARNING30, ERROR40
 log_level: 10
 # Interval in seconds between file parses
 parse_interval: 15
 # Values queue size
 queue_size: 60
+# Pools aliases
+aliases: {}
+

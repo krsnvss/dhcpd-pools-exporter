@@ -25,7 +25,7 @@ class DhcpdPoolsExporter:
         self.gauge = GaugeMetricFamily(
             name="dhcpd_pools_util",
             documentation="DHCP server pools utilisation",
-            labels=["host", "pool", "router"],
+            labels=["host", "pool", "router", "alias"],
         )
         if not self.metrics_queue.empty():
             self.stats = self.metrics_queue.get()
@@ -33,7 +33,7 @@ class DhcpdPoolsExporter:
                 for pool in list(self.stats.keys()):
                     if self.stats[pool]["percentage"]:
                         self.gauge.add_metric(
-                            labels=[self.host, pool, self.stats[pool]["router"]],
+                            labels=[self.host, pool, self.stats[pool]["router"], self.stats[pool]["alias"]],
                             value=self.stats[pool]["percentage"],
                         )
             self.metrics_queue.task_done()

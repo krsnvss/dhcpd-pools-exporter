@@ -44,6 +44,7 @@ def get_pools_util(
     lease_pattern: str,
     parse_interval: int,
     _queue: Queue,
+    aliases: dict
 ):
     """
     Parses dhcpd configuration and leases file
@@ -53,7 +54,7 @@ def get_pools_util(
     while True:
         with THREAD_LOCK:
             logging.debug(f"Parsing {config_file}")
-        pools = parser.parse_file(config_file, pools_pattern, configuration=True)
+        pools = parser.parse_file(config_file, pools_pattern, configuration=True, aliases=aliases)
         with THREAD_LOCK:
             logging.debug(f"Parsing {lease_file}")
         leases = parser.parse_file(lease_file, lease_pattern, leases=True)
@@ -74,6 +75,7 @@ def get_pools_util(
                 stats[pool.name]["total"] / 100
             )
             stats[pool.name]["router"] = pool.router
+            stats[pool.name]["alias"] = pool.alias
         # Get one item to avoid queue stuck with old values
         if _queue.full():
             _queue.get_nowait()
@@ -155,6 +157,7 @@ def main():
                 read_regex(exporter_config['regex']['leases']),
                 exporter_config['parse_interval'],
                 POOLS_DATA,
+                exporter_config['aliases']
             ),
         )
         start_http_server(exporter_config['port'])
@@ -171,6 +174,7 @@ def main():
                 read_regex(args.lease_regex),
                 args.parse_interval,
                 POOLS_DATA,
+                {}
             ),
         )
         start_http_server(args.port)
