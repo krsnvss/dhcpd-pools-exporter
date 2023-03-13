@@ -11,10 +11,11 @@ class DhcpdPool:
     DHCP Pool object
     """
 
-    def __init__(self, name: str, subnet: ip_network, router: str) -> None:
+    def __init__(self, name: str, subnet: ip_network, router: str, alias="") -> None:
         self.name = name
         self.subnet = subnet
         self.router = router
+        self.alias = alias
 
     def __repr__(self):
         return f"{self.name} - {self.subnet} - {self.subnet.num_addresses} addresses"
@@ -43,7 +44,7 @@ class DhcpdFileParser:
     """
 
     def parse_file(
-        self, filename: str, pattern: str, configuration=False, leases=False
+        self, filename: str, pattern: str, configuration=False, leases=False, aliases=dict
     ) -> list:
         """
         Parses file with filename and finds matches with pattern
@@ -55,7 +56,7 @@ class DhcpdFileParser:
         if self.parsed:
             for match in self.parsed:
                 if configuration:
-                    self.pool = self.convert_to_pool(match)
+                    self.pool = self.convert_to_pool(match, aliases)
                     if self.pool.subnet:
                         self.result.append(self.pool)
                 elif leases:
@@ -64,7 +65,7 @@ class DhcpdFileParser:
                         self.result.append(self.lease)
         return self.result
 
-    def convert_to_pool(self, match_array: tuple) -> DhcpdPool:
+    def convert_to_pool(self, match_array: tuple, aliases: dict) -> DhcpdPool:
         """
         Converts match tuple to DhcpdPool object
         """
@@ -73,6 +74,10 @@ class DhcpdFileParser:
             name=match_array[2],
             router=match_array[3],
         )
+        if aliases and str(pool.subnet) in aliases.keys(): 
+            pool.alias = aliases[str(pool.subnet)]
+        else:
+            pool.alias = pool.name
         return pool
 
     def convert_to_lease(self, match_array: tuple) -> DhcpdLease:
